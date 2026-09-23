@@ -76,8 +76,11 @@ class Pipeline:
     self.config['device'], self.config['use_ddp'] = utils.init_device()
 
     # Accelerator
+    log_with = self.config.get('log_with', 'tensorboard')
+    if isinstance(log_with, str) and log_with.lower() == 'none':
+      log_with = None
     self.config['accelerator'] = accelerate_lib.Accelerator(
-        log_with='tensorboard', project_dir=self.project_dir
+        log_with=log_with, project_dir=self.project_dir
     )
 
     # Seed and Logger

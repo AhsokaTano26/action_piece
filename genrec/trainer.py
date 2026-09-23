@@ -120,11 +120,12 @@ class Trainer:
             self.model, optimizer, train_dataloader, val_dataloader, scheduler
         )
     )
-    self.accelerator.init_trackers(
-        project_name=get_file_name(self.config, suffix=''),
-        config=config_for_log(self.config),
-        init_kwargs={'tensorboard': {'flush_secs': 60}},
-    )
+    if self.config.get('log_with', 'tensorboard') is not None:
+      self.accelerator.init_trackers(
+          project_name=get_file_name(self.config, suffix=''),
+          config=config_for_log(self.config),
+          init_kwargs={'tensorboard': {'flush_secs': 60}},
+      )
 
     n_epochs = np.ceil(
         total_n_steps / (len(train_dataloader) * self.accelerator.num_processes)

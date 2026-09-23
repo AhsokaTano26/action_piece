@@ -22,3 +22,13 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# Local datasets and experiment artifacts
+cache/
+ckpt/
+logs/
+tensorboard/
+
+# Local editor and operating-system files
+.DS_Store
+.idea/

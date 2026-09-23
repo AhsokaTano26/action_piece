@@ -488,14 +488,19 @@ class ActionPieceTokenizer(AbstractTokenizer):
       seq = data['state_seq'][:-1]
       lb = data['state_seq'][-1]
       # The labels should always be encoded by encode_plus
-      input_ids.append(
-          [self.bos_token]
-          + self.actionpiece.encode(
-              seq,
-              shuffle='none' if self.n_inference_ensemble == -1 else 'feature',
+      if self.n_inference_ensemble == -1:
+        input_ids.append(
+            [self.bos_token]
+            + self.actionpiece.encode(seq, shuffle='none')
+            + [self.eos_token]
+        )
+      else:
+        for _ in range(self.n_inference_ensemble):
+          input_ids.append(
+              [self.bos_token]
+              + self.actionpiece.encode(seq, shuffle='feature')
+              + [self.eos_token]
           )
-          + [self.eos_token]
-      )
       labels.append(lb)
     seq_lens = [len(ids) for ids in input_ids]
     max_seq_len = max(seq_lens)

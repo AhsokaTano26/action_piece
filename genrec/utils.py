@@ -15,6 +15,8 @@
 
 """Utils for GenRec."""
 
+from __future__ import annotations
+
 import datetime
 import hashlib
 import html
@@ -24,17 +26,19 @@ import os
 import random
 import re
 import sys
-from typing import Any, Optional, Union
+from typing import Any, Optional, TYPE_CHECKING, Union
 
 import accelerate.utils
 import datasets.utils.logging
-from genrec.dataset import AbstractDataset
-from genrec.model import AbstractModel
-from genrec.trainer import Trainer
 import numpy as np
 import requests
 import torch
 import yaml
+
+if TYPE_CHECKING:
+  from genrec.dataset import AbstractDataset
+  from genrec.model import AbstractModel
+  from genrec.trainer import Trainer
 
 
 def init_seed(seed, reproducibility):
@@ -48,8 +52,9 @@ def init_seed(seed, reproducibility):
   random.seed(seed)
   np.random.seed(seed)
   torch.manual_seed(seed)
-  torch.cuda.manual_seed(seed)
-  torch.cuda.manual_seed_all(seed)
+  if torch.cuda.is_available():
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
   accelerate.utils.set_seed(seed)
   if reproducibility:
     torch.backends.cudnn.benchmark = False
@@ -182,7 +187,7 @@ def get_tokenizer(model_name: str):
   module_name = f'genrec.models.{model_name}.tokenizer'
   try:
     module = importlib.import_module(module_name)
-    getattr(module, f'{model_name}Tokenizer')
+    return getattr(module, f'{model_name}Tokenizer')
   except Exception as exc:
     raise ValueError(f'Tokenizer for model "{model_name}" not found.') from exc
 
@@ -200,6 +205,8 @@ def get_model(model_name: Union[str, AbstractModel]) -> AbstractModel:
   Raises:
       ValueError: If the model name is not found.
   """
+  from genrec.model import AbstractModel
+
   if isinstance(model_name, AbstractModel):
     return model_name
 
@@ -223,6 +230,8 @@ def get_dataset(dataset_name: Union[str, AbstractDataset]) -> AbstractDataset:
   Raises:
       ValueError: If the dataset name is not found.
   """
+  from genrec.dataset import AbstractDataset
+
   if isinstance(dataset_name, AbstractDataset):
     return dataset_name
 
@@ -246,12 +255,16 @@ def get_trainer(model_name: Union[str, AbstractModel]):
       trainer_class: The trainer class corresponding to the given model name. If
       the model name is not found, the default Trainer class is returned.
   """
+  from genrec.model import AbstractModel
+  from genrec.trainer import Trainer
+
   if isinstance(model_name, str):
-    trainer_class = getattr(
-        importlib.import_module(f'genrec.models.{model_name}.trainer'),
-        f'{model_name}Trainer',
-    )
-    return trainer_class
+    module_name = f'genrec.models.{model_name}.trainer'
+    try:
+      trainer_module = importlib.import_module(module_name)
+      return getattr(trainer_module, f'{model_name}Trainer')
+    except (ModuleNotFoundError, AttributeError):
+      return Trainer
 
   return Trainer
 
@@ -294,10 +307,11 @@ def _convert_value(value: str) -> Any:
     return float(value)
   except ValueError:
     pass
-  try:
-    return list(map(lambda x: x.strip(), value.strip('[]').split(',')))
-  except (ValueError, TypeError):
-    pass
+  if value.startswith('[') and value.endswith(']'):
+    body = value[1:-1].strip()
+    if not body:
+      return []
+    return [x.strip() for x in body.split(',')]
   return value
 
 
@@ -501,7 +515,7 @@ def clean_text(raw_text: str) -> str:
 
 
 def init_device():
-  """Set the visible devices for training. Supports multiple GPUs.
+  """Set the visible devices for training.
 
   Returns:
       torch.device: The device to use for training.
@@ -511,6 +525,8 @@ def init_device():
   )  # Check if DDP is enabled
   if torch.cuda.is_available():
     return torch.device('cuda'), use_ddp
+  if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+    return torch.device('mps'), use_ddp
   else:
     return torch.device('cpu'), use_ddp
 
